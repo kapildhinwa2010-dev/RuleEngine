@@ -1,43 +1,57 @@
 # RuleEngine
 
-Facts, alias derivation and chain reasoning.
+[![CI](https://github.com/kapildhinwa2010-dev/RuleEngine/actions/workflows/ci.yml/badge.svg)](https://github.com/kapildhinwa2010-dev/RuleEngine/actions/workflows/ci.yml)
+[![CI](https://github.com/kapildhinwa2010-dev/RuleEngine/actions/workflows/codeql.yml/badge.svg)](https://github.com/kapildhinwa2010-dev/RuleEngine/actions/workflows/codeql.yml)
+
+Rule-based fact derivation with forward chaining over (subject, predicate, object) triples.
 
 **Part of the [Kapildhinwa2010-dev Toolkit](https://github.com/kapildhinwa2010-dev/Kapildhinwa2010-dev).**
 
-![CI](https://github.com/kapildhinwa2010-dev/RuleEngine/actions/workflows/ci.yml/badge.svg)
-![CodeQL](https://github.com/kapildhinwa2010-dev/RuleEngine/actions/workflows/codeql.yml/badge.svg)
-![Python](https://img.shields.io/badge/python-3.9%2B-blue)
-![License](https://img.shields.io/badge/license-MIT-green)
+## What it does
 
-## ✨ Features
+RuleEngine is the RULES layer of the fact-tool family. On top of the
+shared triple store it registers (base_predicate -> derived_predicate)
+rules and forward_chain() derives new facts from transitive base
+chains: a parent b, b parent c  =>  a ancestor b, a ancestor c.
+Storage extras (merge/JSON) live in FactBase; alias derivation in
+AliasDeriver; path analysis in ChainReasoner.
 
-- (subject, predicate, object) fact triples with dedup
-- Transitive `same_as` alias closure
-- Multi-hop chain walks and interference ranking
-
-## 📦 Install
+## Install
 
 ```bash
 pip install -r requirements.txt
 ```
 
-## 🚀 Quick start
+## Quick start
 
 ```python
 from ruleengine import KnowledgeNet
 
 net = KnowledgeNet()
-net.add('a', 'next', 'b')
-net.add('b', 'next', 'c')
-print(net.chain('a', 'next'))  # ['b', 'c']
+net.add("a", "parent", "b")
+net.add("b", "parent", "c")
+net.add_rule("parent", "ancestor")
+print(net.forward_chain())   # 2 new ancestor facts
+print(len(net))              # 4
 ```
 
-## 🧪 Tests
+## API
 
-```bash
-pytest tests/ -v
-```
+- add / query / facts / chain / interference - shared triple store
+- add_rule(base, derived) - register a transitive rule
+- transitive_closure(predicate) - subject -> all reachable objects
+- forward_chain() - fire all rules, return newly derived facts
 
-## 📄 License
+## Honest results and limitations
 
-MIT — see [LICENSE](LICENSE).
+- Rules are strictly transitive (base implies derived along chains).
+  No negation, no conjunction, no default handling - the source
+  experiments showed negation is confidently wrong in this family.
+- forward_chain() adds derived facts permanently; there is no
+  retraction.
+- chain() follows only the FIRST match per hop (use ChainReasoner for
+  all paths).
+
+## License
+
+MIT - see [LICENSE](LICENSE).
