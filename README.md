@@ -1,7 +1,8 @@
 # RuleEngine
 
 [![CI](https://github.com/kapildhinwa2010-dev/RuleEngine/actions/workflows/ci.yml/badge.svg)](https://github.com/kapildhinwa2010-dev/RuleEngine/actions/workflows/ci.yml)
-[![CI](https://github.com/kapildhinwa2010-dev/RuleEngine/actions/workflows/codeql.yml/badge.svg)](https://github.com/kapildhinwa2010-dev/RuleEngine/actions/workflows/codeql.yml)
+[![CodeQL](https://github.com/kapildhinwa2010-dev/RuleEngine/actions/workflows/codeql.yml/badge.svg)](https://github.com/kapildhinwa2010-dev/RuleEngine/actions/workflows/codeql.yml)
+
 
 Rule-based fact derivation with forward chaining over (subject, predicate, object) triples.
 
