@@ -1,18 +1,18 @@
-# RuleEngine - Rule-based fact derivation: aliases and chains at query time
+# RuleEngine - Rule-based fact derivation with forward chaining
 # Part of the Kapildhinwa2010-dev Toolkit.
 
-"""KnowledgeNet - facts, alias derivation and chain reasoning.
+"""RuleEngine - derivation rules and forward chaining over facts.
 
-Lineage: reserv.dean-part-2 (HELIX). Facts are stored as (subject, predicate,
-object) triples; aliases are derived transitively from equality facts; chain
-reasoning walks predicates to answer multi-hop queries.
+Lineage: reserv.dean-part-2 (HELIX). On top of the shared triple store
+this repo adds RULES: register (base_predicate -> derived_predicate)
+pairs and forward_chain() derives new facts from transitive base chains
+(e.g. parent -> ancestor: a parent b, b parent c  =>  a ancestor c).
+Storage, alias derivation and chain walks live in the sibling repos.
 """
 
 from __future__ import annotations
 
 from collections import defaultdict
-
-import numpy as np
 
 __all__ = ["Fact", "KnowledgeNet"]
 
@@ -44,7 +44,7 @@ class Fact:
 
 
 class KnowledgeNet:
-    """Zero-overhead fact base with alias and chain reasoning."""
+    """Fact store with indexed direct and reverse queries."""
 
     def __init__(self) -> None:
         self._facts: set = set()
@@ -131,3 +131,51 @@ class KnowledgeNet:
                 scores[fact] = len(related)
         ranked = sorted(scores.items(), key=lambda kv: (-kv[1], kv[0].as_tuple()))
         return [fact for fact, _ in ranked[:top_k]]
+
+    def add_rule(self, base_predicate: str, derived_predicate: str) -> None:
+        """Register a rule: transitive ``base`` implies ``derived``."""
+        if not hasattr(self, "_rules"):
+            self._rules: dict = {}
+        if not base_predicate or not derived_predicate:
+            raise ValueError("predicates must be non-empty")
+        self._rules[base_predicate] = derived_predicate
+
+    def transitive_closure(self, predicate: str, max_hops: int = 16) -> dict:
+        """Map each subject to every object reachable via ``predicate``."""
+        if max_hops < 1:
+            raise ValueError("max_hops must be >= 1")
+        reach: dict = {}
+        for start in sorted({f.subject for f in self._facts}):
+            seen: set = set()
+            frontier = [start]
+            for _ in range(max_hops):
+                nxt = []
+                for node in frontier:
+                    for f in self._by_subject.get(node, []):
+                        if f.predicate == predicate and f.object not in seen:
+                            seen.add(f.object)
+                            nxt.append(f.object)
+                if not nxt:
+                    break
+                frontier = nxt
+            if seen:
+                reach[start] = sorted(seen)
+        return reach
+
+    def forward_chain(self) -> list:
+        """Fire all rules; return the list of newly derived Facts.
+
+        For every rule base->derived and every chain a -base-> b -base-> c,
+        derives a -derived-> b and a -derived-> c (not a -derived-> a).
+        Derived facts are added to the store, so repeated calls are no-ops.
+        """
+        if not hasattr(self, "_rules"):
+            return []
+        new_facts: list = []
+        for base, derived in sorted(self._rules.items()):
+            closure = self.transitive_closure(base)
+            for start, targets in closure.items():
+                for target in targets:
+                    if self.add(start, derived, target):
+                        new_facts.append(Fact(start, derived, target))
+        return new_facts

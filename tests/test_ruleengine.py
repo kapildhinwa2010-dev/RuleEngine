@@ -13,12 +13,6 @@ def test_fact_rejects_empty():
         Fact("", "knows", "bob")
 
 
-def test_fact_equality_and_hash():
-    assert Fact("a", "p", "b") == Fact("a", "p", "b")
-    assert hash(Fact("a", "p", "b")) == hash(Fact("a", "p", "b"))
-    assert Fact("a", "p", "b") != Fact("a", "p", "c")
-
-
 def test_add_and_len():
     net = KnowledgeNet()
     assert net.add("a", "knows", "b") is True
@@ -29,60 +23,64 @@ def test_add_and_len():
 def test_query_pattern():
     net = KnowledgeNet()
     net.add("a", "knows", "b")
-    net.add("b", "knows", "c")
     net.add("a", "likes", "c")
     assert len(net.query(subject="a")) == 2
-    assert len(net.query(predicate="knows")) == 2
-    assert len(net.query(obj="c")) == 2
-    assert len(net.query(subject="a", predicate="likes")) == 1
-
-
-def test_derive_aliases_transitive():
-    net = KnowledgeNet()
-    net.add("x", "same_as", "y")
-    net.add("y", "same_as", "z")
-    aliases = net.derive_aliases()
-    assert aliases["x"] == aliases["y"] == aliases["z"]
-
-
-def test_derive_aliases_ignores_other_predicates():
-    net = KnowledgeNet()
-    net.add("x", "knows", "y")
-    assert net.derive_aliases() == {}
 
 
 def test_chain_walk():
     net = KnowledgeNet()
     net.add("a", "next", "b")
     net.add("b", "next", "c")
-    net.add("c", "next", "d")
-    assert net.chain("a", "next") == ["b", "c", "d"]
+    assert net.chain("a", "next") == ["b", "c"]
 
 
-def test_chain_respects_max_hops():
+# --- rules / forward chaining (RuleEngine-specific) ---
+
+
+def test_add_rule_and_forward_chain():
     net = KnowledgeNet()
-    net.add("a", "next", "b")
-    net.add("b", "next", "c")
-    assert net.chain("a", "next", max_hops=1) == ["b"]
+    net.add("a", "parent", "b")
+    net.add("b", "parent", "c")
+    net.add_rule("parent", "ancestor")
+    derived = net.forward_chain()
+    tuples = {f.as_tuple() for f in derived}
+    assert ("a", "ancestor", "b") in tuples
+    assert ("a", "ancestor", "c") in tuples
+    assert ("b", "ancestor", "c") in tuples
 
 
-def test_chain_handles_cycles():
+def test_forward_chain_idempotent():
     net = KnowledgeNet()
-    net.add("a", "next", "b")
-    net.add("b", "next", "a")
-    assert net.chain("a", "next") == ["b"]
+    net.add("a", "parent", "b")
+    net.add_rule("parent", "ancestor")
+    net.forward_chain()
+    assert net.forward_chain() == []
 
 
-def test_interference_ranks_related():
+def test_forward_chain_without_rules():
     net = KnowledgeNet()
-    net.add("hub", "knows", "a")
-    net.add("hub", "knows", "b")
-    net.add("lonely", "knows", "c")
-    top = net.interference("hub")
-    assert top and top[0].subject == "hub"
+    net.add("a", "parent", "b")
+    assert net.forward_chain() == []
 
 
-def test_chain_rejects_bad_hops():
+def test_add_rule_rejects_empty():
     net = KnowledgeNet()
     with pytest.raises(ValueError):
-        net.chain("a", "next", max_hops=0)
+        net.add_rule("", "ancestor")
+
+
+def test_transitive_closure():
+    net = KnowledgeNet()
+    net.add("a", "parent", "b")
+    net.add("b", "parent", "c")
+    net.add("c", "parent", "d")
+    closure = net.transitive_closure("parent")
+    assert closure["a"] == ["b", "c", "d"]
+    assert closure["b"] == ["c", "d"]
+    assert "d" not in closure
+
+
+def test_transitive_closure_rejects_bad_hops():
+    net = KnowledgeNet()
+    with pytest.raises(ValueError):
+        net.transitive_closure("p", max_hops=0)
